@@ -29,6 +29,7 @@ sudo yum install curl wget -y
 
 # macOS (using Homebrew)
 brew install curl wget
+```
 
 ## Installation
 1. Clone The Repository
@@ -83,18 +84,18 @@ List Arabic translators:
 ## How It Works
 The script communicates with Quran translation APIs to retrieve requested content. It handles:
 
-Language/translator selection
+- Language/translator selection
 
-Parameter validation
+- Parameter validation
 
-API requests formatting
+- API requests formatting
 
-Response parsing and display
+- Response parsing and display
 
 ## Acknowledgments
-Mentors and teachers for guidance
+- Mentors and teachers for guidance
 
-Development team for collaboration
+- Development team for collaboration
 
-Open source community for support
+- Open source community for support
 
