@@ -1,0 +1,259 @@
+#!/bin/bash
+
+# Function to display help message
+usage() {
+    echo "Usage: $0 [-h] [-l] [-L <language_code>] [-e <language>] [-t <translator_code>] [-s <surah_number>] [-S <surah_number>] [-a <ayah_number>] [-A <surah_ayah>] [-e <language_code>] [-j <juz_number>] [-r <ruku_number>]"
+    echo "Options:"
+    echo "  -h Display this help message."
+    echo "  -l List available languages."
+    echo "  -L <language_code>    List translators available for a specific language."
+    echo "  -e <language_code>    select language for translation. default 'en'"
+    echo "  -t <translator_code>  select translator for a language. default 'first one'"
+    echo "  -s <surah_number>     Fetch translation of a specific Surah. 1-114"
+    echo "  -S <surah_number>     Surah number to fetch the translation of ayah."
+    echo "  -A <ayah_number>      Fetch translation of a specific ayah from a surah."
+    echo "  -j <juz_number>       Fetch translation of a specific Juz(Para)."
+    echo "  -r <ruku_number>      Fetch translation of a specific Ruku."
+    echo "  -a <ayah_number>      Fetch translation of a specific ayah. 1-6236"
+    echo "  -t <translator>       Specify translator (e.g., ur.qadri)."
+    echo "  -f <file_name>        Save output to a file"
+    exit 1
+}
+
+#languages Associative array for language codes
+declare -A languages=( 
+    ["ar"]="Arabic"
+    ["am"]="Amharic"
+    ["az"]="Azerbaijani"
+    ["ber"]="Berber"
+    ["bn"]="Bengali"
+    ["cs"]="Czech"
+    ["de"]="German"
+    ["dv"]="Divehi (Maldivian)"
+    ["en"]="English"
+    ["es"]="Spanish"
+    ["fa"]="Persian"
+    ["fr"]="French"
+    ["ha"]="Hausa"
+    ["hi"]="Hindi"
+    ["id"]="Indonesian"
+    ["it"]="Italian"
+    ["ja"]="Japanese"
+    ["ko"]="Korean"
+    ["ku"]="Kurdish"
+    ["ml"]="Malayalam"
+    ["nl"]="Dutch"
+    ["no"]="Norwegian"
+    ["pl"]="Polish"
+    ["ps"]="Pashto"
+    ["pt"]="Portuguese"
+    ["ro"]="Romanian"
+    ["ru"]="Russian"
+    ["sd"]="Sindhi"
+    ["so"]="Somali"
+    ["sq"]="Albanian"
+    ["sv"]="Swedish"
+    ["sw"]="Swahili"
+    ["ta"]="Tamil"
+    ["tg"]="Tajik"
+    ["th"]="Thai"
+    ["tr"]="Turkish"
+    ["tt"]="Tatar"
+    ["ug"]="Uyghur"
+    ["ur"]="Urdu"
+    ["uz"]="Uzbek"
+)
+
+#color declaration
+BLACK="\033[30m"
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+BLUE="\033[34m"
+PINK="\033[35m"
+CYAN="\033[36m"
+WHITE="\033[37m"
+NORMAL="\033[0;39m"
+
+# Function to list available languages for Quran editions
+list_languages() {
+    local api_url="http://api.alquran.cloud/v1/edition/language"
+    local language_codes=$(curl -s "$api_url" | jq -r ".data[]")
+
+    for code in $language_codes; do
+        if [[ -n "${languages[$code]}" ]]; then
+            echo -e  "${code} : ${GREEN}${languages[$code]}${BLUE}"
+        fi
+    done
+}
+
+
+# Function to list specific language editions
+list_language_editions() {
+    local language="$1"
+    curl -s "https://api.alquran.cloud/v1/edition/language/$language" | jq -r '.data.[] | "\(.identifier)\n\t\(.englishName)"'
+}
+# Function to fetch translation of a Surah in a specific language
+fetch_surah_translation() {
+    local surah_number="$1"
+    local translator="$2"
+    curl -s "http://api.alquran.cloud/v1/surah/$surah_number/$translator" | jq -r -C ".data.ayahs[].text"
+}
+
+# Function to fetch translation of a Juz (Para) in a specific language
+fetch_juz_translation() {
+    local juz_number="$1"
+    local translator="$2"
+    curl -s "http://api.alquran.cloud/v1/juz/$juz_number/$translator" | jq -r ".data.ayahs[] | .text"
+}
+ 
+# Function to fetch translation of a Ruku in a specific language
+fetch_ruku_translation() {
+    local ruku_number="$1"
+    local translator="$2"
+    curl -s "http://api.alquran.cloud/v1/ruku/$ruku_number/$translator" | jq -r ".data.ayahs[] | .text"
+}
+# Function to fetch translation of a specific ayah in a specific language
+fetch_ayah_translation() {
+    local ayah_number="$1"
+    local translator="$2"
+    local response
+    response=$(curl -s "http://api.alquran.cloud/v1/ayah/$ayah_number/$translator")
+    if [[ -n "$response" && $(echo "$response" | jq '.code') == "200" ]]; then
+        jq -r ".data.text" <<< "$response"
+    else
+        echo "Error: Failed to fetch translation for Ayah $ayah_number in $translator"
+    fi
+}
+
+fetch_s_ayah_translation() {
+    local surah_number="$1"
+    local ayah_number="$2"
+    local translator="$3"
+    local response
+    response=$(curl -s "http://api.alquran.cloud/v1/ayah/$surah_number:$ayah_number/$translator")
+    if [[ -n "$response" && $(echo "$response" | jq '.code') == "200" ]]; then
+        jq -r ".data.text" <<< "$response"
+    else
+        echo "Error: Failed to fetch translation for Ayah $ayah_number in $translator"
+    fi
+}
+
+language_code='en'
+translator='en.asad'
+Sflag=false
+Aflag=false
+# Parse command-line options using getopts
+while getopts ":hlL:s:j:r:a:t:f:A:S:e:" opt; do
+    case $opt in
+        h )  usage
+            ;;
+
+        l )  # List available languages for Quran editions
+            echo -e "\nAvailable languages for Quran editions:\n"
+            list_languages
+            exit
+            ;;
+
+        L )  # List translators in a specific language
+            language_code=$OPTARG
+            echo -e "$NORMAL\nTranslators available in $language_code language:\n$BLUE"
+            list_language_editions "$language_code"
+            exit
+            ;;
+
+        e )  # select the edition of translation
+            language_code=$OPTARG
+            translator=`curl -s "https://api.alquran.cloud/v1/edition/language/$language_code" | jq -r ".data[1].identifier"`
+            ;;
+
+        t )  # select the translator
+            translator=$OPTARG
+            ;;
+
+        s )  # Fetch translation of a Surah
+            surah_number=$OPTARG
+            output+=`echo -e "$NORMAL\nTranslation of $surah_number in $translator is:\n$YELLOW"`
+            output+=$(fetch_surah_translation "$surah_number" "$translator")
+            echo -e "$output"
+            ;;
+
+        S )
+            Sflag=true
+            Svalue=$OPTARG
+            ;;
+
+        A )  # Ayah from a surah
+            Aflag=true
+            ayah=$OPTARG
+            #if [ -z $Sflag ]
+            #then
+            #    echo -e "$RED\nspecify -S flag before -A flag!! $NORMAL"
+            #else
+            #    echo $Svalue
+            #    echo $ayah
+            #fi
+            ;;
+
+        a )  # Fetch translation of a specific ayah
+            ayah_number=$OPTARG
+
+            output+=`echo -e "$NORMAL \nTranslation of Ayah $ayah_number in $translator:\n$YELLOW"`
+            output+=$(fetch_ayah_translation "$ayah_number" "$translator")
+            echo -e "$output"
+            ;;
+    
+        j )  # Fetch translation of a specific juzz
+            juzz_number=$OPTARG
+
+            output+=`echo -e "$NORMAL\nTranslation of Juzz $juzz_number in $translator:\n$YELLOW"`
+            output+=$(fetch_juz_translation "$juzz_number" "$translator")
+            echo -e $output
+            ;;
+    
+        r )  # Fetch translation of a specific ruku
+            ruku_number=$OPTARG
+
+            output+=`echo -e "$NORMAL\nTranslation of ruku $ruku_number in $translator:\n$YELLOW"`
+            output+=$(fetch_ruku_translation "$ruku_number" "$translator")
+            echo -e "$output"
+            ;;
+
+        f )  # save output to file
+            output_file="$OPTARG"
+            ;;
+
+        \?)
+            echo "Invalid option: $OPTARG" >&2
+            exit 1
+            ;;
+
+        : )
+            echo "Option -$OPTARG requires an argument." >&2
+            exit 1
+            ;;
+
+        *)
+            exit 1
+            ;;
+        
+    esac
+done
+
+if [ "$Sflag" = true ] && [ -z "$ayah" ]; then
+    echo -e "$RED\nOption -S requires option -A.$NORMAL\n"
+elif [ "$Aflag" = true ] && [ -z "$Svalue" ]; then
+    echo -e "$RED\nOption -A requires option -S.$NORMAL\n"
+elif [ "$Sflag" = true ] && [ "$Aflag" = true ]
+then
+    output+=$(fetch_s_ayah_translation "$Svalue" "$ayah" "$translator")
+    echo $output
+fi
+
+if [ -n "$output_file" ]
+then
+  echo -e "$NORMAL\nOutput will be saved to file: $output_file"
+  # Redirect output to the specified file
+  # sed removes special characters for colors etc
+  echo -e "$output" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" > "$output_file"
+fi
